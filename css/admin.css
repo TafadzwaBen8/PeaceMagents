@@ -1,0 +1,145 @@
+/* Admin dashboard — reuses the storefront's design tokens (css/styles.css)
+   for colors/fonts, this file just handles admin-specific layout. */
+
+body { background: var(--cream); }
+
+.admin-wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.admin-gate {
+  max-width: 360px;
+  margin: 120px auto;
+  text-align: center;
+}
+.admin-gate input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  margin-bottom: 12px;
+}
+
+.admin-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+}
+.admin-tab {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+.admin-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+
+.admin-panel { display: none; }
+.admin-panel.active { display: block; }
+
+.admin-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+}
+.admin-card h3 { margin-top: 0; }
+
+.admin-form { display: grid; gap: 14px; max-width: 480px; }
+.admin-form label { font-size: 0.82rem; font-weight: 600; display: block; margin-bottom: 6px; }
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--cream);
+  color: var(--ink);
+  font: inherit;
+}
+.admin-form textarea { min-height: 70px; resize: vertical; }
+.admin-form-row { display: flex; gap: 12px; }
+.admin-form-row > div { flex: 1; }
+
+table.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.admin-table th, .admin-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.admin-table th {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+
+.pill {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pill--ok { background: rgba(47, 158, 86, 0.15); color: var(--accent-ink); }
+[data-theme="dark"] .pill--ok { color: var(--accent); }
+.pill--low { background: rgba(217, 154, 31, 0.18); color: #7a5306; }
+.pill--out { background: var(--ink); color: var(--cream); }
+.pill--open { background: rgba(217, 154, 31, 0.18); color: #7a5306; }
+.pill--sold { background: rgba(47, 158, 86, 0.15); color: var(--accent-ink); }
+[data-theme="dark"] .pill--sold { color: var(--accent); }
+
+.admin-table button {
+  font-size: 0.76rem;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.admin-table button:hover { background: var(--ink); color: var(--cream); }
+
+.admin-danger {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.admin-danger button {
+  background: none;
+  border: 1px solid #c1432c;
+  color: #c1432c;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
