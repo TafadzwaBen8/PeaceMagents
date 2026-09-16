@@ -2,11 +2,11 @@
 
 ## The idea
 
-You now have two working directions:
+W now have two working directions:
 
 1. **The e-commerce build** (what we did in this chat): real cart, Supabase
    Auth accounts, Stripe checkout, order history, admin dashboard.
-2. **The storefront rebuild** (your uploaded zip): real product photography,
+2. **The storefront rebuild** : real product photography,
    a cleaner light/dark design, and a "no cart, message the seller"
    enquiry flow (WhatsApp / email / call), backed by a separate Express +
    lowdb API.
@@ -26,7 +26,7 @@ self-serve sale AND the relationship-based sale, and you capture both as
 leads/orders in one place instead of losing the WhatsApp conversations to
 a channel you can't see.
 
-This also simplifies your hosting story: instead of running two backends
+This also simplifies our hosting story: instead of running two backends
 (Supabase+Stripe on Vercel, and a separate Express/lowdb API on
 Render/Railway), everything lives in Supabase + Vercel. One place to
 deploy, one place to check on orders and enquiries.
@@ -69,7 +69,7 @@ have needed a separate always-on host (Render/Railway) just for that.
 
 ## Data model (Supabase / Postgres)
 
-### `products` — extended with the zip's richer fields
+### `products` — extended with the richer fields
 
 ```sql
 create table products (
@@ -95,9 +95,9 @@ create policy "Public read active products" on products for select using (active
 ```
 
 Note: `price_cents` is the **authoritative, per-item price** — not
-derived from category. The zip's API priced by category ($15 flat for
+derived from category. The API priced by category ($15 flat for
 every "tee"), which silently conflicts with `products-data.js`'s real
-per-item prices (Jersey $58, Sage Tee $38, etc.). Category stays around
+per-item prices (Jersey $15, Sage Tee $15, etc.). Category stays around
 only as a label/filter and as a suggested default when adding a new
 product in the admin — it should never override a price someone typed in.
 
@@ -141,7 +141,7 @@ toggle, product cards) — each card gets:
 **Cart panel** — exactly what we built: quantities, remove, subtotal, Stripe
 checkout. Unchanged.
 
-**Enquire modal** — port the zip's version as-is (WhatsApp/email/call links,
+**Enquire modal** — port thIS version as-is (WhatsApp/email/call links,
 prefilled message) — just add one line to the button handlers: fire a
 `POST /api/enquiries` alongside opening the link, so it's logged even if
 the shopper only ever clicks through to WhatsApp.
@@ -188,7 +188,7 @@ Vercel environment variables (all from the previous setup guides, nothing new):
 
 ## Build order
 
-1. **Design migration** — bring in the zip's `css/styles.css`, light/dark
+1. **Design migration** — bring in the `css/styles.css`, light/dark
    theme toggle, and `assets/` photography. Retire the 3-way Editorial/
    Raw/Futuristic switcher.
 2. **Products table** — create it with the extended schema above; seed it
