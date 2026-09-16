@@ -2,7 +2,7 @@
 
 ## The idea
 
-W now have two working directions:
+We now have two working directions:
 
 1. **The e-commerce build** (what we did in this chat): real cart, Supabase
    Auth accounts, Stripe checkout, order history, admin dashboard.
