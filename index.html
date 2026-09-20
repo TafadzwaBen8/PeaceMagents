@@ -273,14 +273,18 @@
       <span>Subtotal</span>
       <span data-cart-subtotal>$0</span>
     </div>
+    <div class="checkout-fields">
+      <input type="text" placeholder="Your name" data-checkout-name required />
+      <input type="email" placeholder="Your email" data-checkout-email required />
+      <input type="tel" placeholder="Phone (optional)" data-checkout-phone />
+    </div>
     <button type="button" class="btn btn--primary" style="width:100%;" data-checkout-button>
       Checkout
     </button>
     <div class="form-status" data-checkout-status></div>
     <p class="checkout-note">
-      Test mode: this records a sale and updates stock locally so you
-      can try the full flow. Real card payment (Stripe) gets wired in
-      during the backend step.
+      You'll be redirected to Paynow to pay securely by EcoCash,
+      OneMoney, Visa or Mastercard.
     </p>
   </div>
 </aside>
