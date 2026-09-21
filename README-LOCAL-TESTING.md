@@ -86,7 +86,7 @@ didn't make the cut:
 Everything from the previous build still works exactly the same:
 Add to Bag, the cart panel, mock checkout with live stock updates,
 Enquire via WhatsApp/email/call, and the full `admin.html` dashboard
-(passcode `peacemagents-admin`) for logging new stock, adding
+(local admin passcode has been removed; production admin access uses Supabase Auth) for logging new stock, adding
 products, and tracking sales/enquiries.
 
 ---
@@ -98,6 +98,6 @@ products, and tracking sales/enquiries.
 - Double check the 8 new prices — these are placeholders in the same
   range as your existing catalog, not confirmed pricing.
 - Everything still runs on `localStorage` — fine for a local pitch
-  demo on your own laptop, but the backend step (Supabase/Stripe, per
+  demo on your own laptop, but the backend step (Supabase/Paynow, per
   `HYBRID-PROJECT-PLAN.md`) is still what makes stock and orders
   persist for real customers.

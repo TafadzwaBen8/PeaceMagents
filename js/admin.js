@@ -1,267 +1,1080 @@
-import { ADMIN_LOCAL_PASSCODE, LOW_STOCK_THRESHOLD } from "./config.js";
-import * as store from "./store.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-/* ============================================================
-   LOCAL PASSCODE GATE
-   (Temporary — see the note in config.js. Replaced by a real
-   server-side check in the backend step.)
-============================================================ */
-const GATE_KEY = "pm_admin_unlocked";
 const gate = document.querySelector("[data-admin-gate]");
 const dashboard = document.querySelector("[data-admin-dashboard]");
 
-function unlock() {
-  sessionStorage.setItem(GATE_KEY, "1");
+let supabase = null;
+let accessToken = null;
+let products = [];
+
+const LOW_STOCK_THRESHOLD = 3;
+
+
+/* ============================================================
+   BASIC UI HELPERS
+============================================================ */
+
+function showGate() {
+  gate.style.display = "block";
+  dashboard.style.display = "none";
+}
+
+function showDashboard(user) {
   gate.style.display = "none";
   dashboard.style.display = "block";
-  renderAll();
-}
 
-document.querySelector("[data-gate-submit]")?.addEventListener("click", () => {
-  const input = document.querySelector("[data-gate-input]");
-  const errorEl = document.querySelector("[data-gate-error]");
+  const userEl = document.querySelector("[data-admin-user]");
 
-  if (input.value === ADMIN_LOCAL_PASSCODE) {
-    unlock();
-  } else {
-    errorEl.textContent = "Incorrect passcode.";
+  if (userEl) {
+    userEl.textContent = user?.email
+      ? `Signed in as ${user.email}`
+      : "";
   }
-});
-
-document.querySelector("[data-gate-input]")?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") document.querySelector("[data-gate-submit]").click();
-});
-
-if (sessionStorage.getItem(GATE_KEY) === "1") {
-  unlock();
 }
+
+function setStatus(selector, message, type = "") {
+  const element = document.querySelector(selector);
+
+  if (!element) return;
+
+  element.textContent = message;
+  element.className = `form-status${type ? ` form-status--${type}` : ""}`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+/* ============================================================
+   API
+============================================================ */
+
+async function api(path, options = {}) {
+  if (!accessToken) {
+    throw new Error("Your admin session has expired.");
+  }
+
+  const headers = new Headers(options.headers || {});
+
+  headers.set(
+    "Authorization",
+    `Bearer ${accessToken}`
+  );
+
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(path, {
+    ...options,
+    headers,
+  });
+
+  let body = null;
+
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      body?.error ||
+      `Request failed with HTTP ${response.status}.`
+    );
+  }
+
+  return body;
+}
+
+
+/* ============================================================
+   AUTH
+============================================================ */
+
+async function loadRuntimeConfig() {
+  const response = await fetch("/api/config", {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Unable to load application configuration.");
+  }
+
+  const config = await response.json();
+
+  if (!config.supabaseUrl || !config.supabaseAnonKey) {
+    throw new Error("Supabase public configuration is missing.");
+  }
+
+  supabase = createClient(
+    config.supabaseUrl,
+    config.supabaseAnonKey,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+}
+
+
+async function verifyAdminSession(session) {
+  if (!session?.access_token) {
+    return false;
+  }
+
+  accessToken = session.access_token;
+
+  try {
+    await api("/api/admin/session");
+
+    return true;
+  } catch {
+    accessToken = null;
+    return false;
+  }
+}
+
+
+async function initialiseAuth() {
+  try {
+    await loadRuntimeConfig();
+
+    const {
+      data: {
+        session,
+      },
+    } = await supabase.auth.getSession();
+
+    if (await verifyAdminSession(session)) {
+      showDashboard(session.user);
+      await renderAll();
+      return;
+    }
+
+    showGate();
+
+  } catch (error) {
+    showGate();
+
+    setStatus(
+      "[data-login-error]",
+      error.message,
+      "error"
+    );
+  }
+}
+
+
+/* ============================================================
+   LOGIN
+============================================================ */
+
+document
+  .querySelector("[data-login-form]")
+  ?.addEventListener("submit", async (event) => {
+
+    event.preventDefault();
+
+    const form = event.currentTarget;
+
+    const email = String(
+      form.elements.email.value
+    ).trim();
+
+    const password = String(
+      form.elements.password.value
+    );
+
+    setStatus(
+      "[data-login-error]",
+      "Signing in…"
+    );
+
+    try {
+
+      const {
+        data,
+        error,
+      } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const valid = await verifyAdminSession(
+        data.session
+      );
+
+      if (!valid) {
+        await supabase.auth.signOut();
+
+        throw new Error(
+          "This account is not authorized as a PeaceMagents administrator."
+        );
+      }
+
+      setStatus(
+        "[data-login-error]",
+        ""
+      );
+
+      showDashboard(data.user);
+
+      form.reset();
+
+      await renderAll();
+
+    } catch (error) {
+
+      accessToken = null;
+
+      setStatus(
+        "[data-login-error]",
+        error.message || "Unable to sign in.",
+        "error"
+      );
+    }
+  });
+
+
+/* ============================================================
+   SIGN OUT
+============================================================ */
+
+document
+  .querySelector("[data-admin-signout]")
+  ?.addEventListener("click", async () => {
+
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      accessToken = null;
+      showGate();
+    }
+  });
+
+
+/* ============================================================
+   AUTH STATE
+============================================================ */
+
+async function attachAuthListener() {
+
+  supabase.auth.onAuthStateChange(
+    async (_event, session) => {
+
+      if (!session) {
+        accessToken = null;
+        showGate();
+        return;
+      }
+
+      const valid = await verifyAdminSession(session);
+
+      if (!valid) {
+        await supabase.auth.signOut();
+        return;
+      }
+
+      showDashboard(session.user);
+      await renderAll();
+    }
+  );
+}
+
 
 /* ============================================================
    TABS
 ============================================================ */
-document.querySelectorAll("[data-admin-tab]").forEach((tab) => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll("[data-admin-tab]").forEach((t) => t.classList.remove("active"));
-    document.querySelectorAll("[data-admin-panel]").forEach((p) => p.classList.remove("active"));
-    tab.classList.add("active");
-    document.querySelector(`[data-admin-panel="${tab.dataset.adminTab}"]`).classList.add("active");
+
+document
+  .querySelectorAll("[data-admin-tab]")
+  .forEach((tab) => {
+
+    tab.addEventListener("click", () => {
+
+      document
+        .querySelectorAll("[data-admin-tab]")
+        .forEach((item) => {
+          item.classList.remove("active");
+        });
+
+      document
+        .querySelectorAll("[data-admin-panel]")
+        .forEach((panel) => {
+          panel.classList.remove("active");
+        });
+
+      tab.classList.add("active");
+
+      const panel = document.querySelector(
+        `[data-admin-panel="${tab.dataset.adminTab}"]`
+      );
+
+      panel?.classList.add("active");
+    });
+
   });
-});
+
 
 /* ============================================================
-   INVENTORY TABLE
+   INVENTORY
 ============================================================ */
+
+async function loadProducts() {
+
+  const result = await api(
+    "/api/admin/products"
+  );
+
+  products = Array.isArray(result.products)
+    ? result.products
+    : [];
+
+  return products;
+}
+
+
 function renderInventory() {
-  const tbody = document.querySelector("[data-inventory-body]");
-  const products = store.getProducts();
+
+  const tbody = document.querySelector(
+    "[data-inventory-body]"
+  );
+
+  if (!tbody) return;
+
+  if (!products.length) {
+
+    tbody.innerHTML = `
+      <tr>
+        <td
+          colspan="5"
+          style="color:var(--ink-soft);"
+        >
+          No products found.
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
 
   tbody.innerHTML = products
-    .map((p) => {
-      const stock = p.stock ?? 0;
-      let pill = `<span class="pill pill--ok">${stock} in stock</span>`;
-      if (stock === 0) pill = `<span class="pill pill--out">Sold out</span>`;
-      else if (stock <= LOW_STOCK_THRESHOLD) pill = `<span class="pill pill--low">${stock} left</span>`;
+    .map((product) => {
+
+      const stock = Number(
+        product.stock ?? 0
+      );
+
+      let pill = `
+        <span class="pill pill--ok">
+          ${stock} in stock
+        </span>
+      `;
+
+      if (stock === 0) {
+
+        pill = `
+          <span class="pill pill--out">
+            Sold out
+          </span>
+        `;
+
+      } else if (stock <= LOW_STOCK_THRESHOLD) {
+
+        pill = `
+          <span class="pill pill--low">
+            ${stock} left
+          </span>
+        `;
+      }
 
       return `
         <tr>
-          <td><strong>${p.name}</strong><br><span style="color:var(--ink-soft);font-size:0.8em;">${p.id}</span></td>
-          <td>${p.category || "—"}</td>
-          <td>$${p.price}</td>
-          <td>${pill}</td>
+
           <td>
-            <button type="button" data-stock-minus="${p.id}">−1</button>
-            <button type="button" data-stock-plus="${p.id}">+1</button>
+            <strong>
+              ${escapeHtml(product.name)}
+            </strong>
+
+            <br>
+
+            <span
+              style="
+                color:var(--ink-soft);
+                font-size:0.8em;
+              "
+            >
+              ${escapeHtml(
+                product.slug || product.id || ""
+              )}
+            </span>
+          </td>
+
+          <td>
+            ${escapeHtml(
+              product.category || "—"
+            )}
+          </td>
+
+          <td>
+            $${(
+              Number(product.price_cents || 0) / 100
+            ).toFixed(2)}
+          </td>
+
+          <td>${pill}</td>
+
+          <td>
+
+            <button
+              type="button"
+              data-stock-minus="${escapeHtml(
+                product.id
+              )}"
+            >
+              −1
+            </button>
+
+            <button
+              type="button"
+              data-stock-plus="${escapeHtml(
+                product.id
+              )}"
+            >
+              +1
+            </button>
+
+          </td>
+
+        </tr>
+      `;
+
+    })
+    .join("");
+
+
+  tbody
+    .querySelectorAll("[data-stock-plus]")
+    .forEach((button) => {
+
+      button.addEventListener(
+        "click",
+        async () => {
+
+          try {
+
+            await api(
+              "/api/admin/inventory",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  productId:
+                    button.dataset.stockPlus,
+                  quantity: 1,
+                  reason: "restock",
+                }),
+              }
+            );
+
+            await refreshProducts();
+
+          } catch (error) {
+
+            alert(error.message);
+
+          }
+
+        }
+      );
+
+    });
+
+
+  tbody
+    .querySelectorAll("[data-stock-minus]")
+    .forEach((button) => {
+
+      button.addEventListener(
+        "click",
+        async () => {
+
+          try {
+
+            await api(
+              "/api/admin/inventory",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  productId:
+                    button.dataset.stockMinus,
+                  quantity: -1,
+                  reason: "adjustment",
+                }),
+              }
+            );
+
+            await refreshProducts();
+
+          } catch (error) {
+
+            alert(error.message);
+
+          }
+
+        }
+      );
+
+    });
+
+}
+
+
+/* ============================================================
+   PRODUCT SELECT
+============================================================ */
+
+function populateProductSelect() {
+
+  const select = document.querySelector(
+    "[data-restock-product]"
+  );
+
+  if (!select) return;
+
+  const current = select.value;
+
+  select.innerHTML = products
+    .map(
+      (product) => `
+        <option value="${escapeHtml(product.id)}">
+          ${escapeHtml(product.name)}
+          —
+          ${Number(product.stock ?? 0)} in stock
+        </option>
+      `
+    )
+    .join("");
+
+  if (current) {
+    select.value = current;
+  }
+}
+
+
+/* ============================================================
+   RESTOCK
+============================================================ */
+
+document
+  .querySelector("[data-restock-form]")
+  ?.addEventListener("submit", async (event) => {
+
+    event.preventDefault();
+
+    const form = event.currentTarget;
+
+    const productId =
+      form.elements.product.value;
+
+    const quantity = Number(
+      form.elements.quantity.value
+    );
+
+    if (
+      !productId ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
+
+      setStatus(
+        "[data-restock-status]",
+        "Enter a valid quantity.",
+        "error"
+      );
+
+      return;
+    }
+
+    try {
+
+      const result = await api(
+        "/api/admin/inventory",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            productId,
+            quantity,
+            reason: "restock",
+          }),
+        }
+      );
+
+      setStatus(
+        "[data-restock-status]",
+        result.message ||
+          `Logged +${quantity} units.`,
+        "success"
+      );
+
+      form.reset();
+
+      await refreshProducts();
+
+    } catch (error) {
+
+      setStatus(
+        "[data-restock-status]",
+        error.message,
+        "error"
+      );
+
+    }
+
+  });
+
+
+/* ============================================================
+   NEW PRODUCT
+============================================================ */
+
+document
+  .querySelector("[data-new-product-form]")
+  ?.addEventListener("submit", async (event) => {
+
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const fd = new FormData(form);
+
+    const name = String(
+      fd.get("name") || ""
+    ).trim();
+
+    const price = Number(
+      fd.get("price")
+    );
+
+    const stock = Number(
+      fd.get("stock")
+    );
+
+    const sizes = String(
+      fd.get("sizes") || ""
+    )
+      .split(",")
+      .map((size) => size.trim())
+      .filter(Boolean);
+
+    const image = String(
+      fd.get("image") || ""
+    ).trim();
+
+    if (
+      !name ||
+      !Number.isFinite(price) ||
+      price < 0 ||
+      !Number.isInteger(stock) ||
+      stock < 0 ||
+      !image
+    ) {
+
+      setStatus(
+        "[data-new-product-status]",
+        "Name, valid price, stock and image path are required.",
+        "error"
+      );
+
+      return;
+    }
+
+    try {
+
+      const result = await api(
+        "/api/admin/products",
+        {
+          method: "POST",
+          body: JSON.stringify({
+
+            name,
+
+            priceCents:
+              Math.round(price * 100),
+
+            stock,
+
+            category:
+              fd.get("category") || null,
+
+            tag:
+              fd.get("tag") || null,
+
+            sizes:
+              sizes.length
+                ? sizes
+                : ["One size"],
+
+            image,
+
+            description:
+              String(
+                fd.get("description") || ""
+              ).trim(),
+
+            allowDirectCheckout:
+              fd.get("allowDirectCheckout")
+              === "on",
+
+          }),
+        }
+      );
+
+      setStatus(
+        "[data-new-product-status]",
+        result.message ||
+          `Added "${name}".`,
+        "success"
+      );
+
+      form.reset();
+
+      await refreshProducts();
+
+    } catch (error) {
+
+      setStatus(
+        "[data-new-product-status]",
+        error.message,
+        "error"
+      );
+
+    }
+
+  });
+
+
+/* ============================================================
+   SALES
+============================================================ */
+
+async function renderSales() {
+
+  const tbody = document.querySelector(
+    "[data-sales-body]"
+  );
+
+  if (!tbody) return;
+
+  try {
+
+    const result = await api(
+      "/api/admin/orders"
+    );
+
+    const orders = result.orders || [];
+
+    if (!orders.length) {
+
+      tbody.innerHTML = `
+        <tr>
+          <td
+            colspan="5"
+            style="color:var(--ink-soft);"
+          >
+            No completed sales recorded yet.
           </td>
         </tr>
       `;
-    })
-    .join("");
 
-  tbody.querySelectorAll("[data-stock-plus]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      store.adjustStock(btn.dataset.stockPlus, 1, "restock");
-      renderInventory();
-      populateProductSelect();
-    })
-  );
+      return;
+    }
 
-  tbody.querySelectorAll("[data-stock-minus]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      store.adjustStock(btn.dataset.stockMinus, -1, "adjustment");
-      renderInventory();
-      populateProductSelect();
-    })
-  );
+    tbody.innerHTML = orders
+      .filter(
+        (order) =>
+          order.status === "paid"
+      )
+      .map(
+        (order) => `
+          <tr>
+
+            <td>
+              ${new Date(
+                order.created_at
+              ).toLocaleString()}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                order.order_number
+              )}
+            </td>
+
+            <td>
+              ${Number(
+                order.item_count || 0
+              )}
+            </td>
+
+            <td>
+              $${(
+                Number(
+                  order.total_cents || 0
+                ) / 100
+              ).toFixed(2)}
+            </td>
+
+            <td>
+              Paynow
+            </td>
+
+          </tr>
+        `
+      )
+      .join("");
+
+  } catch (error) {
+
+    tbody.innerHTML = `
+      <tr>
+        <td
+          colspan="5"
+          style="color:var(--ink-soft);"
+        >
+          ${escapeHtml(error.message)}
+        </td>
+      </tr>
+    `;
+
+  }
 }
 
-/* ============================================================
-   ADD STOCK FORM (log newly arrived stock)
-============================================================ */
-function populateProductSelect() {
-  const select = document.querySelector("[data-restock-product]");
-  if (!select) return;
-  const current = select.value;
-  select.innerHTML = store
-    .getProducts()
-    .map((p) => `<option value="${p.id}">${p.name} — ${p.stock ?? 0} in stock</option>`)
-    .join("");
-  if (current) select.value = current;
-}
-
-document.querySelector("[data-restock-form]")?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const form = event.target;
-  const productId = form.elements.namedItem("product").value;
-  const qty = parseInt(form.elements.namedItem("quantity").value, 10);
-  const statusEl = document.querySelector("[data-restock-status]");
-
-  if (!productId || !qty || qty <= 0) {
-    statusEl.textContent = "Enter a valid quantity.";
-    statusEl.className = "form-status form-status--error";
-    return;
-  }
-
-  const product = store.adjustStock(productId, qty, "restock");
-  statusEl.textContent = `Logged: +${qty} for "${product.name}" — now ${product.stock} in stock.`;
-  statusEl.className = "form-status form-status--success";
-
-  form.reset();
-  renderInventory();
-  populateProductSelect();
-});
 
 /* ============================================================
-   ADD NEW PRODUCT FORM
+   ENQUIRIES
 ============================================================ */
-document.querySelector("[data-new-product-form]")?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const form = event.target;
-  const statusEl = document.querySelector("[data-new-product-status]");
-  const fd = new FormData(form);
 
-  const name = fd.get("name").trim();
-  const id = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-  const price = parseFloat(fd.get("price"));
-  const stock = parseInt(fd.get("stock"), 10) || 0;
-  const sizes = fd
-    .get("sizes")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+async function renderEnquiries() {
 
-  if (!name || !price || !fd.get("image")) {
-    statusEl.textContent = "Name, price, and image path are required.";
-    statusEl.className = "form-status form-status--error";
-    return;
-  }
+  const tbody = document.querySelector(
+    "[data-enquiries-body]"
+  );
+
+  if (!tbody) return;
 
   try {
-    store.addProduct({
-      id,
-      name,
-      price,
-      currency: "USD",
-      category: fd.get("category") || null,
-      sizes: sizes.length ? sizes : ["One size"],
-      tag: fd.get("tag") || null,
-      stock,
-      allowDirectCheckout: fd.get("allowDirectCheckout") === "on",
-      image: fd.get("image"),
-      alt: name,
-      description: fd.get("description") || "",
-    });
 
-    statusEl.textContent = `Added "${name}" with ${stock} in stock.`;
-    statusEl.className = "form-status form-status--success";
-    form.reset();
-    renderInventory();
-    populateProductSelect();
-  } catch (err) {
-    statusEl.textContent = err.message;
-    statusEl.className = "form-status form-status--error";
-  }
-});
+    const result = await api(
+      "/api/admin/enquiries"
+    );
 
-/* ============================================================
-   SALES LOG
-============================================================ */
-function renderSales() {
-  const tbody = document.querySelector("[data-sales-body]");
-  const sales = store.getSales();
+    const enquiries =
+      result.enquiries || [];
 
-  if (!sales.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--ink-soft);">No sales recorded yet.</td></tr>`;
-    return;
-  }
+    if (!enquiries.length) {
 
-  tbody.innerHTML = sales
-    .map(
-      (s) => `
+      tbody.innerHTML = `
         <tr>
-          <td>${new Date(s.at).toLocaleString()}</td>
-          <td>${s.productName}</td>
-          <td>${s.quantity}</td>
-          <td>$${s.total}</td>
-          <td>${s.source}${s.channel ? ` (${s.channel})` : ""}</td>
+          <td
+            colspan="5"
+            style="color:var(--ink-soft);"
+          >
+            No enquiries recorded yet.
+          </td>
         </tr>
-      `
-    )
-    .join("");
+      `;
+
+      return;
+    }
+
+    tbody.innerHTML = enquiries
+      .map(
+        (enquiry) => `
+          <tr>
+
+            <td>
+              ${new Date(
+                enquiry.created_at
+              ).toLocaleString()}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                enquiry.product_name ||
+                enquiry.product_slug ||
+                "—"
+              )}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                enquiry.channel || "—"
+              )}
+            </td>
+
+            <td>
+
+              ${
+                enquiry.status === "sold"
+                  ? `
+                    <span class="pill pill--sold">
+                      Sold
+                    </span>
+                  `
+                  : `
+                    <span class="pill pill--open">
+                      Open
+                    </span>
+                  `
+              }
+
+            </td>
+
+            <td>
+
+              ${
+                enquiry.status === "open"
+                  ? `
+                    <button
+                      type="button"
+                      data-mark-sold="${escapeHtml(
+                        enquiry.id
+                      )}"
+                    >
+                      Mark as sold
+                    </button>
+                  `
+                  : "—"
+              }
+
+            </td>
+
+          </tr>
+        `
+      )
+      .join("");
+
+
+    tbody
+      .querySelectorAll("[data-mark-sold]")
+      .forEach((button) => {
+
+        button.addEventListener(
+          "click",
+          async () => {
+
+            try {
+
+              await api(
+                "/api/admin/enquiries",
+                {
+                  method: "PATCH",
+                  body: JSON.stringify({
+                    id:
+                      button.dataset.markSold,
+                    status: "sold",
+                  }),
+                }
+              );
+
+              await refreshProducts();
+              await renderEnquiries();
+              await renderSales();
+
+            } catch (error) {
+
+              alert(error.message);
+
+            }
+
+          }
+        );
+
+      });
+
+  } catch (error) {
+
+    tbody.innerHTML = `
+      <tr>
+        <td
+          colspan="5"
+          style="color:var(--ink-soft);"
+        >
+          ${escapeHtml(error.message)}
+        </td>
+      </tr>
+    `;
+
+  }
+
 }
 
-/* ============================================================
-   ENQUIRIES — mark as sold when a chat closes a deal
-============================================================ */
-function renderEnquiries() {
-  const tbody = document.querySelector("[data-enquiries-body]");
-  const enquiries = store.getEnquiries();
-
-  if (!enquiries.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--ink-soft);">No enquiries logged yet.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = enquiries
-    .map(
-      (e) => `
-        <tr>
-          <td>${new Date(e.at).toLocaleString()}</td>
-          <td>${e.productName}</td>
-          <td>${e.channel}</td>
-          <td>${e.status === "sold" ? `<span class="pill pill--sold">Sold</span>` : `<span class="pill pill--open">Open</span>`}</td>
-          <td>${e.status === "open" ? `<button type="button" data-mark-sold="${e.id}">Mark as sold</button>` : "—"}</td>
-        </tr>
-      `
-    )
-    .join("");
-
-  tbody.querySelectorAll("[data-mark-sold]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const sale = store.markEnquirySold(btn.dataset.markSold, 1);
-      if (!sale) return;
-      renderEnquiries();
-      renderSales();
-      renderInventory();
-      populateProductSelect();
-    })
-  );
-}
 
 /* ============================================================
-   RESET DEMO DATA
+   REFRESH
 ============================================================ */
-document.querySelector("[data-reset-demo]")?.addEventListener("click", () => {
-  if (!confirm("Reset all local data (products, stock, sales, enquiries) back to the starting demo state?")) return;
-  store.resetDemoData();
-  renderAll();
-});
 
-/* ============================================================
-   INIT
-============================================================ */
-function renderAll() {
+async function refreshProducts() {
+
+  await loadProducts();
+
   renderInventory();
   populateProductSelect();
-  renderSales();
-  renderEnquiries();
+
 }
+
+
+async function renderAll() {
+
+  await refreshProducts();
+
+  await renderSales();
+
+  await renderEnquiries();
+
+}
+
+
+/* ============================================================
+   BOOT
+============================================================ */
+
+(async function boot() {
+
+  try {
+
+    await loadRuntimeConfig();
+
+    await initialiseAuth();
+
+    if (supabase) {
+      await attachAuthListener();
+    }
+
+  } catch (error) {
+
+    showGate();
+
+    setStatus(
+      "[data-login-error]",
+      error.message,
+      "error"
+    );
+
+  }
+
+})();

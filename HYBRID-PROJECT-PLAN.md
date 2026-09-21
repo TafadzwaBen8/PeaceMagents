@@ -5,7 +5,7 @@
 We now have two working directions:
 
 1. **The e-commerce build** (what we did in this chat): real cart, Supabase
-   Auth accounts, Stripe checkout, order history, admin dashboard.
+   Auth accounts, Paynow checkout, order history, admin dashboard.
 2. **The storefront rebuild** : real product photography,
    a cleaner light/dark design, and a "no cart, message the seller"
    enquiry flow (WhatsApp / email / call), backed by a separate Express +
@@ -13,7 +13,7 @@ We now have two working directions:
 
 Neither fully beats the other — they serve different shoppers:
 
-- Some people want to **tap, pay, done**. That's the cart/Stripe flow.
+- Some people want to **tap, pay, done**. That's the cart/Paynow flow.
 - Some people want to **ask a question first** — sizing, customization,
   bulk order, "is this still in stock" — before committing. That's chat
   commerce, and it's a normal, often *preferred* way to buy from a small
@@ -27,7 +27,7 @@ leads/orders in one place instead of losing the WhatsApp conversations to
 a channel you can't see.
 
 This also simplifies our hosting story: instead of running two backends
-(Supabase+Stripe on Vercel, and a separate Express/lowdb API on
+(Supabase+Paynow on Vercel, and a separate Express/lowdb API on
 Render/Railway), everything lives in Supabase + Vercel. One place to
 deploy, one place to check on orders and enquiries.
 
@@ -42,7 +42,7 @@ Browser (single storefront, light/dark theme, real product photos)
 │
 ├─ "Add to Bag" path
 │   └─ Cart panel (localStorage) → /api/create-checkout-session
-│       → Stripe Checkout → /api/webhook → orders + order_items tables
+│       → Paynow Checkout → /api/webhook → orders + order_items tables
 │
 ├─ "Enquire" path
 │   └─ Modal opens WhatsApp / email / call links (prefilled with item + price)
@@ -138,7 +138,7 @@ toggle, product cards) — each card gets:
 - Photo, name, price, size list, tag badge if present
 - **Two buttons**: `Add to Bag` (primary) and `Enquire` (secondary/outline)
 
-**Cart panel** — exactly what we built: quantities, remove, subtotal, Stripe
+**Cart panel** — exactly what we built: quantities, remove, subtotal, Paynow
 checkout. Unchanged.
 
 **Enquire modal** — port thIS version as-is (WhatsApp/email/call links,
@@ -181,8 +181,8 @@ export const SELLER = {
 ```
 
 Vercel environment variables (all from the previous setup guides, nothing new):
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`,
-`STRIPE_WEBHOOK_SECRET`, `ADMIN_SECRET`
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAYNOW_INTEGRATION_KEY`,
+`PAYNOW_RESULT_URL`, `ADMIN_SECRET`
 
 ---
 
