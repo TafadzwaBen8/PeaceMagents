@@ -6,6 +6,7 @@ const dashboard = document.querySelector("[data-admin-dashboard]");
 let supabase = null;
 let accessToken = null;
 let products = [];
+let editingProductId = null;
 
 const LOW_STOCK_THRESHOLD = 3;
 
@@ -459,6 +460,25 @@ function renderInventory() {
               +1
             </button>
 
+            <button
+              type="button"
+              data-edit-product="${escapeHtml(
+                product.id
+              )}"
+            >
+              Edit
+            </button>
+
+            <button
+              type="button"
+              data-toggle-publish="${escapeHtml(
+                product.id
+              )}"
+              data-active="${product.active ? "true" : "false"}"
+            >
+              ${product.active ? "Unpublish" : "Publish"}
+            </button>
+
           </td>
 
         </tr>
@@ -538,6 +558,49 @@ function renderInventory() {
 
         }
       );
+
+    });
+
+
+  tbody
+    .querySelectorAll("[data-edit-product]")
+    .forEach((button) => {
+
+      button.addEventListener("click", () => {
+        startEditProduct(button.dataset.editProduct);
+      });
+
+    });
+
+
+  tbody
+    .querySelectorAll("[data-toggle-publish]")
+    .forEach((button) => {
+
+      button.addEventListener("click", async () => {
+
+        const productId = button.dataset.togglePublish;
+        const currentlyActive = button.dataset.active === "true";
+
+        try {
+
+          await api("/api/admin/products", {
+            method: "PATCH",
+            body: JSON.stringify({
+              id: productId,
+              active: !currentlyActive,
+            }),
+          });
+
+          await refreshProducts();
+
+        } catch (error) {
+
+          alert(error.message);
+
+        }
+
+      });
 
     });
 
@@ -649,8 +712,166 @@ document
 
 
 /* ============================================================
-   NEW PRODUCT
+   NEW PRODUCT / EDIT PRODUCT
+   (One form serves both — editingProductId decides the mode.)
 ============================================================ */
+
+function startEditProduct(productId) {
+
+  const product = products.find(
+    (item) => item.id === productId
+  );
+
+  if (!product) return;
+
+  editingProductId = productId;
+
+  const form = document.querySelector(
+    "[data-new-product-form]"
+  );
+
+  if (!form) return;
+
+  form.elements.name.value = product.name || "";
+  form.elements.price.value =
+    (Number(product.price_cents || 0) / 100).toFixed(2);
+  form.elements.stock.value = product.stock ?? 0;
+  form.elements.stock.disabled = true; // stock changes via +1/−1 only
+  form.elements.category.value = product.category || "";
+  form.elements.tag.value = product.tag || "";
+  form.elements.sizes.value =
+    (product.sizes || []).join(", ");
+  form.elements.image.value = product.image_url || "";
+  form.elements.description.value =
+    product.description || "";
+  form.elements.allowDirectCheckout.checked =
+    product.allow_direct_checkout !== false;
+  form.elements.active.checked =
+    product.active !== false;
+
+  const heading = document.querySelector(
+    "[data-new-product-heading]"
+  );
+  if (heading) heading.textContent = `Edit "${product.name}"`;
+
+  const submitButton = document.querySelector(
+    "[data-new-product-submit]"
+  );
+  if (submitButton) submitButton.textContent = "Save changes";
+
+  const cancelButton = document.querySelector(
+    "[data-cancel-edit]"
+  );
+  if (cancelButton) cancelButton.style.display = "inline-block";
+
+  document
+    .querySelector('[data-admin-tab="new-product"]')
+    ?.click();
+
+  form.scrollIntoView({ behavior: "smooth" });
+}
+
+function resetProductForm() {
+
+  editingProductId = null;
+
+  const form = document.querySelector(
+    "[data-new-product-form]"
+  );
+
+  if (form) {
+    form.reset();
+    form.elements.stock.disabled = false;
+  }
+
+  const heading = document.querySelector(
+    "[data-new-product-heading]"
+  );
+  if (heading) heading.textContent = "Add a new product";
+
+  const submitButton = document.querySelector(
+    "[data-new-product-submit]"
+  );
+  if (submitButton) submitButton.textContent = "Add product";
+
+  const cancelButton = document.querySelector(
+    "[data-cancel-edit]"
+  );
+  if (cancelButton) cancelButton.style.display = "none";
+
+  setStatus("[data-new-product-status]", "", "");
+  setStatus("[data-image-upload-status]", "", "");
+}
+
+document
+  .querySelector("[data-cancel-edit]")
+  ?.addEventListener("click", resetProductForm);
+
+
+document
+  .querySelector("[data-image-file-field]")
+  ?.addEventListener("change", async (event) => {
+
+    const file = event.currentTarget.files?.[0];
+
+    if (!file) return;
+
+    setStatus(
+      "[data-image-upload-status]",
+      "Uploading…",
+      ""
+    );
+
+    try {
+
+      const buffer = await file.arrayBuffer();
+
+      const response = await fetch(
+        "/api/admin/upload-image",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": file.type,
+          },
+          body: buffer,
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          result?.error || "Upload failed."
+        );
+      }
+
+      const pathField = document.querySelector(
+        "[data-image-path-field]"
+      );
+
+      if (pathField) {
+        pathField.value = result.url;
+      }
+
+      setStatus(
+        "[data-image-upload-status]",
+        "Image uploaded.",
+        "success"
+      );
+
+    } catch (error) {
+
+      setStatus(
+        "[data-image-upload-status]",
+        error.message,
+        "error"
+      );
+
+    }
+
+  });
+
 
 document
   .querySelector("[data-new-product-form]")
@@ -684,73 +905,104 @@ document
       fd.get("image") || ""
     ).trim();
 
+    const active = fd.get("active") === "on";
+    const isEditing = Boolean(editingProductId);
+
     if (
       !name ||
       !Number.isFinite(price) ||
       price < 0 ||
-      !Number.isInteger(stock) ||
-      stock < 0 ||
-      !image
+      !image ||
+      (!isEditing &&
+        (!Number.isInteger(stock) || stock < 0))
     ) {
 
       setStatus(
         "[data-new-product-status]",
-        "Name, valid price, stock and image path are required.",
+        "Name, valid price and image are required.",
         "error"
       );
 
       return;
     }
 
+    const payload = {
+
+      name,
+
+      priceCents:
+        Math.round(price * 100),
+
+      category:
+        fd.get("category") || null,
+
+      tag:
+        fd.get("tag") || null,
+
+      sizes:
+        sizes.length
+          ? sizes
+          : ["One size"],
+
+      image,
+
+      description:
+        String(
+          fd.get("description") || ""
+        ).trim(),
+
+      allowDirectCheckout:
+        fd.get("allowDirectCheckout")
+        === "on",
+
+      active,
+
+    };
+
     try {
 
-      const result = await api(
-        "/api/admin/products",
-        {
-          method: "POST",
-          body: JSON.stringify({
+      if (isEditing) {
 
-            name,
+        await api(
+          "/api/admin/products",
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              id: editingProductId,
+              ...payload,
+            }),
+          }
+        );
 
-            priceCents:
-              Math.round(price * 100),
+        setStatus(
+          "[data-new-product-status]",
+          `Saved changes to "${name}".`,
+          "success"
+        );
 
-            stock,
+      } else {
 
-            category:
-              fd.get("category") || null,
+        const result = await api(
+          "/api/admin/products",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              ...payload,
+              stock,
+            }),
+          }
+        );
 
-            tag:
-              fd.get("tag") || null,
+        setStatus(
+          "[data-new-product-status]",
+          result.message ||
+            `Added "${name}".`,
+          "success"
+        );
 
-            sizes:
-              sizes.length
-                ? sizes
-                : ["One size"],
+      }
 
-            image,
-
-            description:
-              String(
-                fd.get("description") || ""
-              ).trim(),
-
-            allowDirectCheckout:
-              fd.get("allowDirectCheckout")
-              === "on",
-
-          }),
-        }
-      );
-
-      setStatus(
-        "[data-new-product-status]",
-        result.message ||
-          `Added "${name}".`,
-        "success"
-      );
-
-      form.reset();
+      resetProductForm();
 
       await refreshProducts();
 

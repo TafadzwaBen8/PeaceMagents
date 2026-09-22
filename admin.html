@@ -277,7 +277,7 @@
 
     <div class="admin-card">
 
-      <h3>Add a new product</h3>
+      <h3 data-new-product-heading>Add a new product</h3>
 
       <form
         class="admin-form"
@@ -377,14 +377,27 @@
 
         <div>
 
-          <label>Image path</label>
+          <label>Image</label>
 
           <input
             type="text"
             name="image"
             placeholder="assets/shop/new-item.jpg"
+            data-image-path-field
             required
           />
+
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            data-image-file-field
+            style="margin-top:8px;"
+          />
+
+          <div
+            class="form-status"
+            data-image-upload-status
+          ></div>
 
         </div>
 
@@ -421,11 +434,43 @@
         </div>
 
 
+        <div>
+
+          <label>
+
+            <input
+              type="checkbox"
+              name="active"
+              checked
+              style="
+                width:auto;
+                display:inline-block;
+                margin-right:8px;
+              "
+            />
+
+            Published (visible in the shop)
+
+          </label>
+
+        </div>
+
+
         <button
           type="submit"
           class="btn btn--primary"
+          data-new-product-submit
         >
           Add product
+        </button>
+
+        <button
+          type="button"
+          class="btn"
+          data-cancel-edit
+          style="display:none;"
+        >
+          Cancel edit
         </button>
 
 

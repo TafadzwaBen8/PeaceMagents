@@ -69,8 +69,8 @@ async function createUniqueSlug(name) {
 }
 
 export default async function handler(req, res) {
-  if (!["GET", "POST"].includes(req.method)) {
-    res.setHeader("Allow", "GET, POST");
+  if (!["GET", "POST", "PATCH"].includes(req.method)) {
+    res.setHeader("Allow", "GET, POST, PATCH");
 
     return json(res, 405, {
       ok: false,
@@ -105,30 +105,158 @@ export default async function handler(req, res) {
       });
     }
 
-    const body = req.body || {};
+    const body =
+      typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
 
+    /* ==========================================================
+       PATCH — edit an existing product, including publish state
+    ========================================================== */
+    if (req.method === "PATCH") {
+      const productId =
+        typeof body.id === "string" ? body.id.trim() : "";
+
+      if (!productId) {
+        return json(res, 400, {
+          ok: false,
+          error: "Product ID is required.",
+        });
+      }
+
+      // Publish/unpublish-only requests just send { id, active }.
+      // A full edit sends every field. Both go through the same
+      // RPC — for a publish toggle, load the current row first so
+      // we don't accidentally blank out its other fields.
+      let current = null;
+
+      if (
+        body.name === undefined ||
+        body.priceCents === undefined
+      ) {
+        const { data: existing, error: fetchError } = await supabaseAdmin
+          .from("products")
+          .select("*")
+          .eq("id", productId)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        if (!existing) {
+          return json(res, 404, {
+            ok: false,
+            error: "Product not found.",
+          });
+        }
+
+        current = existing;
+      }
+
+      const name =
+        typeof body.name === "string"
+          ? body.name.trim()
+          : current?.name;
+
+      const priceCents =
+        body.priceCents !== undefined
+          ? parseInteger(body.priceCents)
+          : current?.price_cents;
+
+      const category =
+        body.category !== undefined
+          ? String(body.category || "").trim() || null
+          : current?.category;
+
+      const tag =
+        body.tag !== undefined
+          ? String(body.tag || "").trim() || null
+          : current?.tag;
+
+      const image =
+        body.image !== undefined
+          ? String(body.image || "").trim() || null
+          : current?.image_url;
+
+      const description =
+        body.description !== undefined
+          ? String(body.description || "").trim() || null
+          : current?.description;
+
+      const sizes =
+        body.sizes !== undefined
+          ? normalizeSizes(body.sizes)
+          : current?.sizes || ["One size"];
+
+      const allowDirectCheckout =
+        body.allowDirectCheckout !== undefined
+          ? body.allowDirectCheckout !== false
+          : current?.allow_direct_checkout ?? true;
+
+      const active =
+        body.active !== undefined
+          ? body.active !== false
+          : current?.active ?? true;
+
+      if (!name) {
+        return json(res, 400, {
+          ok: false,
+          error: "Product name is required.",
+        });
+      }
+
+      if (priceCents === null || priceCents === undefined || priceCents < 0) {
+        return json(res, 400, {
+          ok: false,
+          error: "A valid non-negative price is required.",
+        });
+      }
+
+      const { data, error } = await supabaseAdmin.rpc(
+        "admin_update_product",
+        {
+          p_product_id: productId,
+          p_name: name,
+          p_description: description,
+          p_price_cents: priceCents,
+          p_category: category,
+          p_sizes: sizes,
+          p_tag: tag,
+          p_image_url: image,
+          p_alt_text: name,
+          p_allow_direct_checkout: allowDirectCheckout,
+          p_active: active,
+        }
+      );
+
+      if (error) {
+        console.error("Product update error:", error);
+
+        return json(res, 400, {
+          ok: false,
+          error: error.message || "Unable to update product.",
+        });
+      }
+
+      return json(res, 200, {
+        ok: true,
+        product: data,
+      });
+    }
+
+    /* ==========================================================
+       POST — create a new product
+    ========================================================== */
     const name =
-      typeof body.name === "string"
-        ? body.name.trim()
-        : "";
+      typeof body.name === "string" ? body.name.trim() : "";
 
     const priceCents = parseInteger(body.priceCents);
     const stock = parseInteger(body.stock);
 
     const category =
-      typeof body.category === "string"
-        ? body.category.trim()
-        : "";
+      typeof body.category === "string" ? body.category.trim() : "";
 
-    const tag =
-      typeof body.tag === "string"
-        ? body.tag.trim()
-        : "";
+    const tag = typeof body.tag === "string" ? body.tag.trim() : "";
 
     const image =
-      typeof body.image === "string"
-        ? body.image.trim()
-        : "";
+      typeof body.image === "string" ? body.image.trim() : "";
 
     const description =
       typeof body.description === "string"
@@ -137,8 +265,7 @@ export default async function handler(req, res) {
 
     const sizes = normalizeSizes(body.sizes);
 
-    const allowDirectCheckout =
-      body.allowDirectCheckout !== false;
+    const allowDirectCheckout = body.allowDirectCheckout !== false;
 
     if (!name) {
       return json(res, 400, {
