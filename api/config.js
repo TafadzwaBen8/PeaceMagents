@@ -1,12 +1,6 @@
 import { json } from "../lib/http.js";
 
 export default function handler(req, res) {
-  console.log("DEBUG env check:", {
-    hasUrl: !!process.env.SUPABASE_URL,
-    hasAnonKey: !!process.env.SUPABASE_ANON_KEY,
-    cwd: process.cwd(),
-  });
-
   if (req.method !== "GET") {
     return res.status(405).json({
       ok: false,
