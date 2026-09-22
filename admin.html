@@ -4,167 +4,593 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>PeaceMagents — Admin</title>
+
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css" />
 <link rel="stylesheet" href="css/admin.css" />
+
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2316140f'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='%23f4f0e7' font-family='Arial'%3EP%3C/text%3E%3C/svg%3E" />
 </head>
+
 <body>
 
+<!-- ============================================================
+     AUTH GATE
+============================================================ -->
 <div class="admin-gate" data-admin-gate>
+
   <p class="eyebrow">PeaceMagents Admin</p>
-  <h2>Enter passcode</h2>
-  <input type="password" data-gate-input placeholder="Admin passcode" />
-  <button type="button" class="btn btn--primary" data-gate-submit style="width:100%;">Unlock</button>
-  <p class="form-status form-status--error" data-gate-error></p>
-  <p style="font-size:0.78rem;color:var(--ink-soft);margin-top:20px;">
-    Local-only for now — see js/config.js. A real login replaces this
-    once the backend is wired up.
+
+  <h2>Admin login</h2>
+
+  <form data-login-form>
+    <div style="margin-bottom:12px;">
+      <label for="admin-email">Email</label>
+      <input
+        id="admin-email"
+        type="email"
+        name="email"
+        autocomplete="username"
+        placeholder="Admin email"
+        required
+      />
+    </div>
+
+    <div style="margin-bottom:12px;">
+      <label for="admin-password">Password</label>
+      <input
+        id="admin-password"
+        type="password"
+        name="password"
+        autocomplete="current-password"
+        placeholder="Password"
+        required
+      />
+    </div>
+
+    <button
+      type="submit"
+      class="btn btn--primary"
+      style="width:100%;"
+    >
+      Sign in
+    </button>
+
+    <p class="form-status form-status--error" data-login-error></p>
+  </form>
+
+  <p
+    style="
+      font-size:0.78rem;
+      color:var(--ink-soft);
+      margin-top:20px;
+    "
+  >
+    Authorized PeaceMagents administrators only.
   </p>
+
 </div>
 
-<div class="admin-wrap" data-admin-dashboard style="display:none;">
+
+<!-- ============================================================
+     ADMIN DASHBOARD
+============================================================ -->
+<div
+  class="admin-wrap"
+  data-admin-dashboard
+  style="display:none;"
+>
 
   <div class="admin-header">
+
     <div>
-      <p class="eyebrow" style="margin-bottom:4px;">PeaceMagents</p>
-      <h1 style="margin:0;">Inventory &amp; Orders</h1>
+      <p class="eyebrow" style="margin-bottom:4px;">
+        PeaceMagents
+      </p>
+
+      <h1 style="margin:0;">
+        Inventory &amp; Orders
+      </h1>
+
+      <p
+        style="
+          margin:6px 0 0;
+          font-size:0.82rem;
+          color:var(--ink-soft);
+        "
+        data-admin-user
+      ></p>
     </div>
-    <a href="index.html" class="btn btn--outline">← Back to storefront</a>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <a
+        href="index.html"
+        class="btn btn--outline"
+      >
+        ← Back to storefront
+      </a>
+
+      <button
+        type="button"
+        class="btn btn--outline"
+        data-admin-signout
+      >
+        Sign out
+      </button>
+    </div>
+
   </div>
+
 
   <div class="admin-tabs">
-    <button type="button" class="admin-tab active" data-admin-tab="inventory">Inventory</button>
-    <button type="button" class="admin-tab" data-admin-tab="restock">Add Stock</button>
-    <button type="button" class="admin-tab" data-admin-tab="new-product">New Product</button>
-    <button type="button" class="admin-tab" data-admin-tab="sales">Sales Log</button>
-    <button type="button" class="admin-tab" data-admin-tab="enquiries">Enquiries</button>
+
+    <button
+      type="button"
+      class="admin-tab active"
+      data-admin-tab="inventory"
+    >
+      Inventory
+    </button>
+
+    <button
+      type="button"
+      class="admin-tab"
+      data-admin-tab="restock"
+    >
+      Add Stock
+    </button>
+
+    <button
+      type="button"
+      class="admin-tab"
+      data-admin-tab="new-product"
+    >
+      New Product
+    </button>
+
+    <button
+      type="button"
+      class="admin-tab"
+      data-admin-tab="sales"
+    >
+      Sales Log
+    </button>
+
+    <button
+      type="button"
+      class="admin-tab"
+      data-admin-tab="enquiries"
+    >
+      Enquiries
+    </button>
+
   </div>
 
-  <!-- INVENTORY -->
-  <section class="admin-panel active" data-admin-panel="inventory">
+
+  <!-- ==========================================================
+       INVENTORY
+  =========================================================== -->
+  <section
+    class="admin-panel active"
+    data-admin-panel="inventory"
+  >
+
     <div class="admin-card">
+
       <h3>Current stock</h3>
+
       <table class="admin-table">
+
         <thead>
-          <tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Quick adjust</th></tr>
+          <tr>
+            <th>Product</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Quick adjust</th>
+          </tr>
         </thead>
+
         <tbody data-inventory-body></tbody>
+
       </table>
+
     </div>
+
   </section>
 
-  <!-- ADD STOCK -->
-  <section class="admin-panel" data-admin-panel="restock">
+
+  <!-- ==========================================================
+       ADD STOCK
+  =========================================================== -->
+  <section
+    class="admin-panel"
+    data-admin-panel="restock"
+  >
+
     <div class="admin-card">
+
       <h3>Log newly arrived stock</h3>
-      <p style="font-size:0.85rem;color:var(--ink-soft);">Pick a product and how many units just came in — this adds to whatever is already on the shelf.</p>
-      <form class="admin-form" data-restock-form>
+
+      <p
+        style="
+          font-size:0.85rem;
+          color:var(--ink-soft);
+        "
+      >
+        Pick a product and how many units just came in —
+        this adds to whatever is already on the shelf.
+      </p>
+
+      <form
+        class="admin-form"
+        data-restock-form
+      >
+
         <div>
           <label>Product</label>
-          <select data-restock-product name="product"></select>
+          <select
+            data-restock-product
+            name="product"
+            required
+          ></select>
         </div>
+
         <div>
           <label>Quantity received</label>
-          <input type="number" name="quantity" min="1" step="1" required />
+
+          <input
+            type="number"
+            name="quantity"
+            min="1"
+            step="1"
+            required
+          />
         </div>
-        <button type="submit" class="btn btn--primary">Log stock arrival</button>
-        <div class="form-status" data-restock-status></div>
+
+        <button
+          type="submit"
+          class="btn btn--primary"
+        >
+          Log stock arrival
+        </button>
+
+        <div
+          class="form-status"
+          data-restock-status
+        ></div>
+
       </form>
+
     </div>
+
   </section>
 
-  <!-- NEW PRODUCT -->
-  <section class="admin-panel" data-admin-panel="new-product">
+
+  <!-- ==========================================================
+       NEW PRODUCT
+  =========================================================== -->
+  <section
+    class="admin-panel"
+    data-admin-panel="new-product"
+  >
+
     <div class="admin-card">
-      <h3>Add a new product</h3>
-      <form class="admin-form" data-new-product-form>
+
+      <h3 data-new-product-heading>Add a new product</h3>
+
+      <form
+        class="admin-form"
+        data-new-product-form
+      >
+
         <div>
           <label>Name</label>
-          <input type="text" name="name" required />
+
+          <input
+            type="text"
+            name="name"
+            required
+          />
         </div>
+
+
         <div class="admin-form-row">
+
           <div>
             <label>Price (USD)</label>
-            <input type="number" name="price" min="0" step="1" required />
+
+            <input
+              type="number"
+              name="price"
+              min="0"
+              step="0.01"
+              required
+            />
           </div>
+
           <div>
             <label>Starting stock</label>
-            <input type="number" name="stock" min="0" step="1" value="0" required />
+
+            <input
+              type="number"
+              name="stock"
+              min="0"
+              step="1"
+              value="0"
+              required
+            />
           </div>
+
         </div>
+
+
         <div class="admin-form-row">
+
           <div>
+
             <label>Category</label>
+
             <select name="category">
+
               <option value="tees">Tees</option>
               <option value="hoodies">Hoodies</option>
               <option value="bottoms">Bottoms</option>
               <option value="tracksuits">Tracksuits</option>
               <option value="caps">Caps</option>
-              <option value="windbreakers">Windbreaker Jackets</option>
+              <option value="windbreakers">
+                Windbreaker Jackets
+              </option>
+
             </select>
+
           </div>
+
+
           <div>
+
             <label>Tag (optional)</label>
-            <input type="text" name="tag" placeholder="New, Limited…" />
+
+            <input
+              type="text"
+              name="tag"
+              placeholder="New, Limited…"
+            />
+
           </div>
+
         </div>
+
+
         <div>
+
           <label>Sizes (comma separated)</label>
-          <input type="text" name="sizes" placeholder="S, M, L, XL" />
+
+          <input
+            type="text"
+            name="sizes"
+            placeholder="S, M, L, XL"
+          />
+
         </div>
+
+
         <div>
-          <label>Image path</label>
-          <input type="text" name="image" placeholder="assets/shop/new-item.jpg" required />
+
+          <label>Image</label>
+
+          <input
+            type="text"
+            name="image"
+            placeholder="assets/shop/new-item.jpg"
+            data-image-path-field
+            required
+          />
+
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            data-image-file-field
+            style="margin-top:8px;"
+          />
+
+          <div
+            class="form-status"
+            data-image-upload-status
+          ></div>
+
         </div>
+
+
         <div>
+
           <label>Description</label>
+
           <textarea name="description"></textarea>
+
         </div>
+
+
         <div>
-          <label><input type="checkbox" name="allowDirectCheckout" checked style="width:auto;display:inline-block;margin-right:8px;" />Allow "Add to bag" (uncheck to make this enquiry-only)</label>
+
+          <label>
+
+            <input
+              type="checkbox"
+              name="allowDirectCheckout"
+              checked
+              style="
+                width:auto;
+                display:inline-block;
+                margin-right:8px;
+              "
+            />
+
+            Allow "Add to bag"
+            (uncheck to make this enquiry-only)
+
+          </label>
+
         </div>
-        <button type="submit" class="btn btn--primary">Add product</button>
-        <div class="form-status" data-new-product-status></div>
+
+
+        <div>
+
+          <label>
+
+            <input
+              type="checkbox"
+              name="active"
+              checked
+              style="
+                width:auto;
+                display:inline-block;
+                margin-right:8px;
+              "
+            />
+
+            Published (visible in the shop)
+
+          </label>
+
+        </div>
+
+
+        <button
+          type="submit"
+          class="btn btn--primary"
+          data-new-product-submit
+        >
+          Add product
+        </button>
+
+        <button
+          type="button"
+          class="btn"
+          data-cancel-edit
+          style="display:none;"
+        >
+          Cancel edit
+        </button>
+
+
+        <div
+          class="form-status"
+          data-new-product-status
+        ></div>
+
       </form>
+
     </div>
+
   </section>
 
-  <!-- SALES LOG -->
-  <section class="admin-panel" data-admin-panel="sales">
+
+  <!-- ==========================================================
+       SALES LOG
+  =========================================================== -->
+  <section
+    class="admin-panel"
+    data-admin-panel="sales"
+  >
+
     <div class="admin-card">
+
       <h3>Sales log</h3>
-      <p style="font-size:0.85rem;color:var(--ink-soft);">Every completed checkout and every enquiry marked "sold" shows up here, and stock is decremented automatically the moment it does.</p>
+
+      <p
+        style="
+          font-size:0.85rem;
+          color:var(--ink-soft);
+        "
+      >
+        Completed Paynow orders and recorded off-site sales
+        appear here.
+      </p>
+
       <table class="admin-table">
+
         <thead>
-          <tr><th>Date</th><th>Product</th><th>Qty</th><th>Total</th><th>Source</th></tr>
+          <tr>
+            <th>Date</th>
+            <th>Product</th>
+            <th>Qty</th>
+            <th>Total</th>
+            <th>Source</th>
+          </tr>
         </thead>
+
         <tbody data-sales-body></tbody>
+
       </table>
+
     </div>
+
   </section>
 
-  <!-- ENQUIRIES -->
-  <section class="admin-panel" data-admin-panel="enquiries">
+
+  <!-- ==========================================================
+       ENQUIRIES
+  =========================================================== -->
+  <section
+    class="admin-panel"
+    data-admin-panel="enquiries"
+  >
+
     <div class="admin-card">
+
       <h3>Enquiries</h3>
-      <p style="font-size:0.85rem;color:var(--ink-soft);">Logged whenever a shopper clicks WhatsApp, email, or call on a product. Mark one as sold once you've closed the deal off-site — that logs the sale and updates stock for you.</p>
+
+      <p
+        style="
+          font-size:0.85rem;
+          color:var(--ink-soft);
+        "
+      >
+        Product enquiries from WhatsApp, email and other
+        storefront contact actions.
+      </p>
+
       <table class="admin-table">
+
         <thead>
-          <tr><th>Date</th><th>Product</th><th>Channel</th><th>Status</th><th></th></tr>
+          <tr>
+            <th>Date</th>
+            <th>Product</th>
+            <th>Channel</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
         </thead>
+
         <tbody data-enquiries-body></tbody>
+
       </table>
+
     </div>
+
   </section>
+
 
   <div class="admin-danger">
-    <button type="button" data-reset-demo>Reset all local data to demo defaults</button>
+
+    <p
+      style="
+        font-size:0.8rem;
+        color:var(--ink-soft);
+        margin:0 0 10px;
+      "
+    >
+      Production data is stored in Supabase.
+      Local demo reset is disabled.
+    </p>
+
   </div>
 
 </div>
 
+
 <script type="module" src="js/admin.js"></script>
+
 </body>
 </html>

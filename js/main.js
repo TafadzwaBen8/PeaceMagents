@@ -81,7 +81,7 @@ if (carousel && slides.length > 1) {
 }
 
 /* ============================================================
-   PRODUCT RENDERING — from the local store (stock-aware)
+   PRODUCT RENDERING — from the live store (stock-aware)
 ============================================================ */
 const grid = document.querySelector("[data-shop-grid]");
 const shopStatus = document.querySelector("[data-shop-status]");
@@ -210,7 +210,20 @@ function renderShop() {
   }
 }
 
-renderShop();
+async function initShop() {
+  if (shopStatus) shopStatus.textContent = "Loading products…";
+  try {
+    await store.loadProducts();
+  } catch (error) {
+    console.error("Failed to load products:", error);
+    if (shopStatus) {
+      shopStatus.textContent = "Couldn't load products — reach us on WhatsApp in the meantime.";
+    }
+  }
+  renderShop();
+}
+
+initShop();
 
 /* ============================================================
    ENQUIRE MODAL — WhatsApp / email / call, and logs the enquiry
@@ -283,7 +296,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 /* ============================================================
-   CART PANEL — quantities, subtotal, mock checkout
+   CART PANEL — quantities, subtotal, real Paynow checkout
 ============================================================ */
 const cartPanel = document.querySelector("[data-cart-panel]");
 const panelBackdrop = document.querySelector("[data-panel-backdrop]");
@@ -392,21 +405,43 @@ function renderCartPanel() {
   );
 }
 
-document.querySelector("[data-checkout-button]")?.addEventListener("click", () => {
+document.querySelector("[data-checkout-button]")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
   const statusEl = document.querySelector("[data-checkout-status]");
-  const result = store.completeMockCheckout();
+  const nameEl = document.querySelector("[data-checkout-name]");
+  const emailEl = document.querySelector("[data-checkout-email]");
+  const phoneEl = document.querySelector("[data-checkout-phone]");
 
-  if (!result.ok) {
-    statusEl.textContent = result.error;
+  const customerName = nameEl?.value.trim() || "";
+  const customerEmail = emailEl?.value.trim() || "";
+  const customerPhone = phoneEl?.value.trim() || "";
+
+  if (!customerName || !customerEmail) {
+    statusEl.textContent = "Enter your name and email to continue.";
     statusEl.className = "form-status form-status--error";
     return;
   }
 
-  statusEl.textContent = "Test order placed — stock updated. (Real payment arrives with the backend step.)";
+  button.disabled = true;
+  statusEl.textContent = "Starting your Paynow payment…";
+  statusEl.className = "form-status";
+
+  const result = await store.checkout({ customerName, customerEmail, customerPhone });
+
+  if (!result.ok) {
+    button.disabled = false;
+    statusEl.textContent = result.error;
+    statusEl.className = "form-status form-status--error";
+    // Stock may have shifted (someone else's reservation) — refresh it.
+    await store.loadProducts();
+    renderShop();
+    renderCartPanel();
+    return;
+  }
+
+  statusEl.textContent = "Redirecting to Paynow…";
   statusEl.className = "form-status form-status--success";
-  updateBagCount();
-  renderCartPanel();
-  renderShop();
+  window.location.href = result.browserUrl;
 });
 
 updateBagCount();
